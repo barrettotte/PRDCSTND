@@ -1,6 +1,6 @@
-# Beer Fridge
+# Produce-Stand
 
-An introductory project to maintain a beer fridge to learn more about COBOL.
+Pretending a produce stand would have a COBOL program to track their transactions. I always wanted to learn and make something dumb with COBOL, so here it is.
 
 
 ## Development with VS Code
