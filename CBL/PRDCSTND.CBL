@@ -2,115 +2,121 @@
        IDENTIFICATION DIVISION.
       *
        PROGRAM-ID.    PRDCSTND
-       AUTHOR.        Barrett Otte.
+       AUTHOR.        BARRETT OTTE.
+       DATE-WRITTEN.  09/19/20.
+      *
+      * GENERATE REPORT OF DAILY TOTALS OVERALL AND PER-ITEM FROM DAILY 
+      * TRANSACTION AND ITEM INPUT FILES.
+      *
       *-----------------------------------------------------------------
        ENVIRONMENT DIVISION.
       *
+       CONFIGURATION SECTION.
+      *
        INPUT-OUTPUT SECTION.
        FILE-CONTROL.
-           SELECT PRINT-LINE ASSIGN TO PRTLINE.
-           SELECT TRNS-REC   ASSIGN TO PRDCTRNS.
-           SELECT ITEM-REC   ASSIGN TO PRDCITMS.
+           SELECT PRDC-RPT   ASSIGN TO PRTLINE.
+           SELECT TRNS-FILE  ASSIGN TO PRDCTRNS.
+           SELECT ITEM-FILE  ASSIGN TO PRDCITMS.
       *-----------------------------------------------------------------
        DATA DIVISION.
       *
        FILE SECTION.
-       FD  PRINT-LINE RECORDING MODE F.
-       01  PRINT-REC.
-           05  FILLER         PIC X(01)  VALUE SPACE.
-           05  TRNSID-O       PIC 9(05).
-           05  FILLER         PIC X(06)  VALUE SPACES.
-           05  ITEMFK-O       PIC 9(03).
-           05  FILLER         PIC X(07)  VALUE SPACES.
-           05  ITEMNAME-O     PIC X(16).
-           05  FILLER         PIC X(6)   VALUE SPACES.
-           05  ITEMPRC-O      PIC $$$9.99.
-           05  FILLER         PIC X(03)  VALUE SPACES.
-           05  ITEMQTY-O      PIC 9(04).
-           05  FILLER         PIC X(07)  VALUE SPACES.
-           05  TIMEHH-O       PIC 9(02).
-           05  FILLER         PIC X(01)  VALUE ':'.
-           05  TIMEMM-O       PIC 9(02).
-           05  FILLER         PIC X(01)  VALUE ':'.
-           05  TIMESS-O       PIC 9(02).
-           05  FILLER         PIC X(07)  VALUE SPACES.
+       FD  PRDC-RPT RECORDING MODE F.
+       01  RPT-RCD.
+           05  FILLER        PIC X(01)  VALUE SPACE.
+           05  ITEMID-O      PIC 9(03).
+           05  FILLER        PIC X(07)  VALUE SPACES.
+           05  ITEMNAME-O    PIC X(16).
+           05  FILLER        PIC X(6)   VALUE SPACES.
+           05  ITEMQTY-O     PIC 9(04).
+           05  FILLER        PIC X(07)  VALUE SPACES.
+           05  ITEMPRC-O     PIC $$$9.99.
+           05  FILLER        PIC X(29)  VALUE SPACES.
       *
-       FD  TRNS-REC RECORDING MODE F.
-       01  TRNS-FIELDS.
-           05  RESERVED       PIC X(01).
-           05  TRNSID         PIC 9(05).
-           05  ITEMFK         PIC 9(03).
-           05  ITEMPRC        PIC 9(03)V9(2).
-           05  ITEMQTY        PIC 9(04).
-           05  RESERVED       PIC X(16).
-           05  COMMENT        PIC X(30).
-           05  DATETIME       PIC 9(16).
+       FD  TRNS-FILE RECORDING MODE F.
+       01  TRNS-RCD.
+           05  RESERVED      PIC X(01).
+           05  TRNSID-I      PIC 9(05).
+           05  ITEMFK-I      PIC 9(03).
+           05  ITEMPRC-I     PIC 9(03)V9(2).
+           05  ITEMQTY-I     PIC 9(04).
+           05  RESERVED      PIC X(16).
+           05  COMMENT-I     PIC X(30).
+           05  DATETIME-I    PIC 9(16).
       *
-       FD  ITEM-REC RECORDING MODE F.
-       01  ITEM-FIELDS.
-           05  RESERVED       PIC X(01).
-           05  ITEMID         PIC 9(03).
-           05  ITEMNAME       PIC X(16).
-           05  FILLER         PIC X(60) VALUE SPACES.
+       FD  ITEM-FILE RECORDING MODE F.
+       01  ITEM-RCD.
+           05  RESERVED      PIC X(01).
+           05  ITEMID-I      PIC 9(03).
+           05  ITEMNAME-I    PIC X(16).
+           05  FILLER        PIC X(60) VALUE SPACES.
       *
        WORKING-STORAGE SECTION.
-       01  FLAGS.
-           05 LASTTRNS        PIC 9 VALUE ZERO.
-           05 LASTITEM        PIC 9 VALUE ZERO.
+      * TEMPORARY VARIABLES
+       77  ROWTOTAL          PIC 9(06)V9(02) VALUE ZEROS.
+       77  I                 PIC 9(06)       VALUE ZEROS.
       *
-       01  TLIMIT-TBALANCE.
-           05 TLIMIT          PIC S9(09)V99 COMP-3 VALUE ZERO.
-           05 TBALANCE        PIC S9(09)V99 COMP-3 VALUE ZERO.
+       77  FULLTOTAL         PIC 9(08)V9(02) VALUE ZEROS.
+      *
+       01  FLAGS.
+           05  LASTTRNS      PIC 9 VALUE ZERO.
+           05  LASTITEM      PIC 9 VALUE ZERO.
+      *
+       01  ITEMTABLE.
+           05  ITEMROW OCCURS 1000 TIMES.
+               10  ITEMID    PIC 9(03)      VALUE ZEROS.
+               10  ITEMNAME  PIC X(16)      VALUE SPACES.
+               10  ITEMTPRC  PIC 9(08)V9(2) VALUE ZEROS.
+               10  ITEMTQTY  PIC 9(06)      VALUE ZEROS.
       *
        01  MAINHDR-1.
-           05  FILLER         PIC X(14) VALUE 'Produce Stand '.
-           05  FILLER         PIC X(18) VALUE 'Daily Transaction '.
-           05  FILLER         PIC X(07) VALUE 'Report '.
-           05  FILLER         PIC X(41) VALUE SPACES.
+           05  FILLER        PIC X(14) VALUE 'PRODUCE STAND '.
+           05  FILLER        PIC X(14) VALUE 'DAILY REPORT '.
+           05  FILLER        PIC X(52) VALUE SPACES.
       *
        01  MAINHDR-2.
-           05  FILLER         PIC X(05) VALUE 'Year '.
-           05  HDR-YR         PIC 9(04).
-           05  FILLER         PIC X(02) VALUE SPACES.
-           05  FILLER         PIC X(06) VALUE 'Month '.
-           05  HDR-MO         PIC X(02).
-           05  FILLER         PIC X(02) VALUE SPACES.
-           05  FILLER         PIC X(04) VALUE 'Day '.
-           05  HDR-DAY        PIC X(02).
-           05  FILLER         PIC X(56) VALUE SPACES.
+           05  HDR-YR        PIC 9(04).
+           05  FILLER        PIC X(01) VALUE '-'.
+           05  HDR-MO        PIC X(02).
+           05  FILLER        PIC X(01) VALUE '-'.
+           05  HDR-DAY       PIC X(02).
+           05  FILLER        PIC X(02) VALUE SPACES.
+           05  HDR-H         PIC X(02).
+           05  FILLER        PIC X(01) VALUE ':'.
+           05  HDR-MIN       PIC X(02).
+           05  FILLER        PIC X(01) VALUE ':'.
+           05  HDR-SEC       PIC X(02).
+           05  FILLER        PIC X(60) VALUE SPACES.
       *
-       01  TRNSHDR-1.
-           05  FILLER         PIC X(01) VALUE SPACE.
-           05  FILLER         PIC X(08) VALUE 'Trans ID'.
-           05  FILLER         PIC X(03) VALUE SPACES.
-           05  FILLER         PIC X(07) VALUE 'Item ID'.
-           05  FILLER         PIC X(11) VALUE SPACES.
-           05  FILLER         PIC X(06) VALUE 'Item'.
-           05  FILLER         PIC X(09) VALUE SPACES.
-           05  FILLER         PIC X(05) VALUE 'Price'.
-           05  FILLER         PIC X(04) VALUE SPACES.
-           05  FILLER         PIC X(07) VALUE 'Quanity'.
-           05  FILLER         PIC X(06) VALUE SPACES.
-           05  FILLER         PIC X(08) VALUE 'Time'.
-           05  FILLER         PIC X(05) VALUE SPACES.
+       01  TOTALHDR-1.
+           05  FILLER        PIC X(01) VALUE SPACE.
+           05  FILLER        PIC X(07) VALUE 'ITEM ID'.
+           05  FILLER        PIC X(08) VALUE SPACES.
+           05  FILLER        PIC X(09) VALUE 'ITEM NAME'.
+           05  FILLER        PIC X(08) VALUE SPACES.
+           05  FILLER        PIC X(08) VALUE 'QUANTITY'.
+           05  FILLER        PIC X(04) VALUE SPACES.
+           05  FILLER        PIC X(05) VALUE 'TOTAL'.
+           05  FILLER        PIC X(30) VALUE SPACES.
       *
-       01  TRNSHDR-2.
-           05  FILLER         PIC X(11) VALUE '---------- '.
-           05  FILLER         PIC X(10) VALUE '--------- '.
-           05  FILLER         PIC X(22) VALUE '--------------------- '.
-           05  FILLER         PIC X(10) VALUE '--------- '.
-           05  FILLER         PIC X(11) VALUE '---------- '.
-           05  FILLER         PIC X(10) VALUE '----------'.
-           05  FILLER         PIC X(06) VALUE SPACES.
+       01  TOTALHDR-2.
+           05  FILLER        PIC X(10) VALUE '--------- '.
+           05  FILLER        PIC X(22) VALUE '--------------------- '.
+           05  FILLER        PIC X(11) VALUE '---------- '.
+           05  FILLER        PIC X(10) VALUE '--------- '.
+           05  FILLER        PIC X(27) VALUE SPACES.
       *
-       01  TOTALS-1.
-           05  FILLER         PIC X(20) VALUE '--------------------'.
-           05  FILLER         PIC X(20) VALUE '--------------------'.
-           05  FILLER         PIC X(20) VALUE '--------------------'.
-           05  FILLER         PIC X(14) VALUE '--------------'.
+       01  FULLTOTAL-1.
+           05  FILLER        PIC X(15) VALUE 'OVERALL TOTAL: '.
+           05  FULLTOTAL-O   PIC $(8)9.99.
+           05  FILLER        PIC X(55) VALUE SPACES.
       *
-       01  TOTALS-2.
-           05  FILLER         PIC X(80) VALUE SPACES.
+       01  DASH52.
+           05  FILLER        PIC X(20) VALUE '--------------------'.
+           05  FILLER        PIC X(20) VALUE '--------------------'.
+           05  FILLER        PIC X(12) VALUE '------------'.
+           05  FILLER        PIC X(28) VALUE SPACES.
       *
        01 WS-CURRENT-DATE-DATA.
            05  WS-CURRENT-DATE.
@@ -127,69 +133,101 @@
        PROCEDURE DIVISION.
       *
        MAIN-PROCEDURE.
+      * INITIALIZATION
            PERFORM OPEN-FILES.
-           PERFORM WRITE-HEADERS.
-           PERFORM READ-RECORDS.
-           PERFORM WRITE-TOTALS.
+      * SETUP REPORT HEADERS
+           PERFORM WRITE-MAINHDR.
+           WRITE RPT-RCD FROM DASH52.
+           PERFORM WRITE-TOTALSHDR.
+      * READ ALL INPUT RECORDS
+           PERFORM READ-ITEMS.
+           PERFORM READ-TRANSACTIONS.
+      * WRITE REPORT BODY
+           PERFORM WRITE-ITEMTOTALS.
+           WRITE RPT-RCD FROM DASH52.
+           PERFORM WRITE-FULLTOTAL.
+      * CLEAN UP
            PERFORM CLOSE-FILES.
            STOP RUN.
       *
        OPEN-FILES.
-           OPEN INPUT  TRNS-REC.
-           OPEN OUTPUT PRINT-LINE.
+           OPEN INPUT  ITEM-FILE.
+           OPEN INPUT  TRNS-FILE.
+           OPEN OUTPUT PRDC-RPT.
       *
-       WRITE-HEADERS.
+       WRITE-MAINHDR.
            MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-DATE-DATA.
-           MOVE WS-CURRENT-YEAR  TO HDR-YR.
-           MOVE WS-CURRENT-MONTH TO HDR-MO.
-           MOVE WS-CURRENT-DAY   TO HDR-DAY.
-           WRITE PRINT-REC FROM MAINHDR-1.
-           WRITE PRINT-REC FROM MAINHDR-2.
-           MOVE SPACES TO PRINT-REC.
-           WRITE PRINT-REC AFTER ADVANCING 1 LINES.
-           WRITE PRINT-REC FROM TRNSHDR-1.
-           WRITE PRINT-REC FROM TRNSHDR-2.
-           MOVE SPACES TO PRINT-REC.
+           MOVE WS-CURRENT-YEAR       TO HDR-YR.
+           MOVE WS-CURRENT-MONTH      TO HDR-MO.
+           MOVE WS-CURRENT-DAY        TO HDR-DAY.
+           MOVE WS-CURRENT-HOURS      TO HDR-H.
+           MOVE WS-CURRENT-MINUTE     TO HDR-MIN.
+           MOVE WS-CURRENT-SECOND     TO HDR-SEC.
+           WRITE RPT-RCD FROM MAINHDR-1.
+           WRITE RPT-RCD FROM MAINHDR-2.
+           MOVE SPACES TO RPT-RCD.
+           WRITE RPT-RCD AFTER ADVANCING 1 LINES.
       *
-       READ-RECORDS.
-           PERFORM READ-TRNS-RCD
-           PERFORM UNTIL LASTTRNS = 1
-      *      PERFORM LIMIT-BALANCE-TOTAL
-             PERFORM WRITE-RPT-RCD
-             PERFORM READ-TRNS-RCD
+       WRITE-TOTALSHDR.
+           WRITE RPT-RCD FROM TOTALHDR-1.
+           WRITE RPT-RCD FROM TOTALHDR-2.
+           MOVE SPACES TO RPT-RCD.
+      *
+      * POPULATE ARRAY OF ITEMS
+       READ-ITEMS.
+           PERFORM READ-ITEMRCD
+           PERFORM UNTIL LASTITEM = 1
+             MOVE ITEMID-I   TO ITEMID(ITEMID-I)
+             MOVE ITEMNAME-I TO ITEMNAME(ITEMID-I)
+             PERFORM READ-ITEMRCD
            END-PERFORM.
       *
-       WRITE-TOTALS.
-      *     MOVE TLIMIT   TO TLIMIT-O.
-      *     MOVE TBALANCE TO TBALANCE-O.
-            WRITE PRINT-REC AFTER ADVANCING 1 LINES.
-            WRITE PRINT-REC FROM TOTALS-1.
-            MOVE SPACES TO PRINT-REC.
-            WRITE PRINT-REC AFTER ADVANCING 1 LINES.
-            WRITE PRINT-REC FROM TOTALS-2.
+      * READ ALL DAILY TRANSACTION RECORDS
+       READ-TRANSACTIONS.
+           PERFORM READ-TRNSRCD
+           PERFORM UNTIL LASTTRNS = 1
+             PERFORM CALC-ITEMTOTALS
+             PERFORM READ-TRNSRCD
+           END-PERFORM.
       *
-       CLOSE-FILES.
-           CLOSE TRNS-REC.
-           CLOSE PRINT-LINE.
+      * CALCULATE ITEM TOTALS FROM DAILY TRANSACTION RECORDS
+       CALC-ITEMTOTALS.
+           COMPUTE ROWTOTAL           = ITEMPRC-I * ITEMQTY-I.
+           COMPUTE ITEMTQTY(ITEMFK-I) = ITEMTQTY(ITEMFK-I) + ITEMQTY-I.
+           COMPUTE ITEMTPRC(ITEMFK-I) = ITEMTPRC(ITEMFK-I) + ROWTOTAL.
       *
-       READ-TRNS-RCD.
-           READ TRNS-REC
+       READ-TRNSRCD.
+           READ TRNS-FILE
              AT END MOVE 1 TO LASTTRNS
            END-READ.
       *
-      *LIMIT-BALANCE-TOTAL.
-      *    COMPUTE TLIMIT   = TLIMIT   + ACCT-LIMIT   END-COMPUTE
-      *    COMPUTE TBALANCE = TBALANCE + ACCT-BALANCE END-COMPUTE
-      *    .
+       READ-ITEMRCD.
+           READ ITEM-FILE
+             AT END MOVE 1 TO LASTITEM
+           END-READ.
       *
-       WRITE-RPT-RCD.
-           MOVE TRNSID          TO  TRNSID-O.
-           MOVE ITEMFK          TO  ITEMFK-O.
-           MOVE 'TEMP'          TO  ITEMNAME-O.
-           MOVE ITEMPRC         TO  ITEMPRC-O.
-           MOVE ITEMQTY         TO  ITEMQTY-O.
-           MOVE DATETIME(09:2)  TO  TIMEHH-O.
-           MOVE DATETIME(11:2)  TO  TIMEMM-O.
-           MOVE DATETIME(13:2)  TO  TIMESS-O.
-           WRITE PRINT-REC.
+      * WRITE ITEM TABLE WITH CALCULATED TOTALS TO REPORT
+       WRITE-ITEMTOTALS.
+           PERFORM VARYING I FROM 1 BY 1 UNTIL I > 1000
+             IF ITEMID(I) > 0 AND ITEMTQTY(I) > 0
+               MOVE ITEMID(I)   TO ITEMID-O
+               MOVE ITEMNAME(I) TO ITEMNAME-O
+               MOVE ITEMTQTY(I) TO ITEMQTY-O
+               MOVE ITEMTPRC(I) TO ITEMPRC-O
+               WRITE RPT-RCD
+               COMPUTE FULLTOTAL = FULLTOTAL + ITEMTPRC(I)
+             END-IF  
+           END-PERFORM.
+      *
+      * WRITE GRAND TOTAL OF ALL TRANSACTIONS
+       WRITE-FULLTOTAL.
+           MOVE SPACES TO RPT-RCD.
+           WRITE RPT-RCD AFTER ADVANCING 1 LINES.
+           MOVE FULLTOTAL TO FULLTOTAL-O.
+           WRITE RPT-RCD FROM FULLTOTAL-1.
+      *
+       CLOSE-FILES.
+           CLOSE ITEM-FILE.
+           CLOSE TRNS-FILE.
+           CLOSE PRDC-RPT.
       *
